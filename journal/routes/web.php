@@ -20,9 +20,8 @@ Route::middleware('auth')->group(function () {
         return view('journal.calendar');
     })->name('calendar');
 
-    Route::get('/journal-history', function () {
-        return view('journal.history');
-    })->name('journal-history');
+    Route::get('/journal-history', [JournalEntryController::class, 'index'])->name('journal-history');
+    Route::delete('/journal-history/{entry}', [JournalEntryController::class, 'destroy'])->name('journal.destroy');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::get('/profile/export', [ProfileController::class, 'export'])->name('profile.export');

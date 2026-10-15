@@ -19,6 +19,82 @@ class JournalEntryController extends Controller
     public const MAX_IMAGES = 6;
 
     /**
+     * Entries per page on the history archive.
+     */
+    public const PER_PAGE = 9;
+
+    /**
+     * The archive of all entries, with search, mood and month filters.
+     */
+    public function index(Request $request): View
+    {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'mood' => ['nullable', Rule::enum(Mood::class)],
+            'month' => ['nullable', 'date_format:Y-m'],
+            'sort' => ['nullable', Rule::in(['newest', 'oldest'])],
+        ]);
+
+        $user = $request->user();
+        $entries = $user->journalEntries();
+
+        if ($search = $validated['q'] ?? null) {
+            // shortcut: matches raw HTML too, so searching "strong" finds bold text; strip tags on save if it matters
+            $entries->where(fn ($query) => $query
+                ->where('title', 'like', "%{$search}%")
+                ->orWhere('content', 'like', "%{$search}%"));
+        }
+
+        if ($month = $validated['month'] ?? null) {
+            $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+            $entries->whereBetween('entry_date', [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()]);
+        }
+
+        // Pill counts follow the search and month filters but not the mood itself
+        $moodCounts = (clone $entries)->whereNotNull('mood')->toBase()
+            ->selectRaw('mood, count(*) as total')->groupBy('mood')->pluck('total', 'mood');
+        $allCount = (clone $entries)->count();
+
+        if ($mood = $validated['mood'] ?? null) {
+            $entries->where('mood', $mood);
+        }
+
+        $published = $user->journalEntries()->published();
+        $firstDate = (clone $published)->min('entry_date');
+
+        return view('journal.history', [
+            'entries' => $entries
+                ->orderBy('entry_date', ($validated['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc')
+                ->paginate(self::PER_PAGE)
+                ->withQueryString(),
+            'filters' => $validated,
+            'moods' => Mood::cases(),
+            'moodCounts' => $moodCounts,
+            'allCount' => $allCount,
+            'months' => $user->journalEntries()->orderByDesc('entry_date')->pluck('entry_date')
+                ->map(fn ($date) => $date->format('Y-m'))->unique()->values(),
+            'totalStories' => (clone $published)->count(),
+            'firstDate' => $firstDate ? Carbon::parse($firstDate) : null,
+            'totalWords' => (int) (clone $published)->sum('word_count'),
+            'entriesThisMonth' => (clone $published)->where('entry_date', '>=', today()->startOfMonth()->toDateString())->count(),
+        ]);
+    }
+
+    /**
+     * Delete one of the user's entries together with its photos.
+     */
+    public function destroy(Request $request, int $entry): RedirectResponse
+    {
+        $entry = $request->user()->journalEntries()->findOrFail($entry);
+
+        // Delete photos through the model so their files are removed too
+        $entry->images->each->delete();
+        $entry->delete();
+
+        return back()->with('status', 'Entry from '.$entry->entry_date->format('M j, Y').' deleted.');
+    }
+
+    /**
      * Show the editor for a day (today by default), prefilled if that day already has an entry.
      */
     public function create(Request $request): View
