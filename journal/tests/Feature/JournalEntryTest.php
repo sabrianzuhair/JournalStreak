@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class JournalEntryTest extends TestCase
@@ -120,6 +121,19 @@ class JournalEntryTest extends TestCase
 
         $this->assertSame(4, $user->longestStreak());
         $this->assertSame(1, $user->currentStreak());
+    }
+
+    public function test_streak_dates_are_loaded_once_per_user(): void
+    {
+        $user = User::factory()->create();
+        $this->entriesOn($user, ['2026-10-14', '2026-10-15']);
+
+        DB::enableQueryLog();
+        $user->currentStreak();
+        $user->longestStreak();
+        $user->nextStreakMilestone();
+
+        $this->assertCount(1, DB::getQueryLog());
     }
 
     public function test_streaks_are_zero_without_entries(): void

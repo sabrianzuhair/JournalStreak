@@ -19,6 +19,9 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    /** @var Collection<int, string>|null */
+    protected ?Collection $publishedEntryDates = null;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -153,12 +156,15 @@ class User extends Authenticatable
 
     /**
      * Distinct published entry dates as Y-m-d strings, oldest first.
+     * Loaded once per user instance, so the sidebar and page share one query.
+     *
+     * shortcut: not cleared when entries change; read streaks only after this request's writes
      *
      * @return Collection<int, string>
      */
     protected function publishedEntryDates(): Collection
     {
-        return $this->journalEntries()
+        return $this->publishedEntryDates ??= $this->journalEntries()
             ->published()
             ->orderBy('entry_date')
             ->pluck('entry_date')
