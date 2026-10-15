@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\ProfileController;
@@ -16,9 +17,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/write-journal', [JournalEntryController::class, 'create'])->name('write-journal');
     Route::post('/write-journal', [JournalEntryController::class, 'store'])->name('journal.store');
 
-    Route::get('/calendar', function () {
-        return view('journal.calendar');
-    })->name('calendar');
+    Route::get('/calendar', CalendarController::class)->name('calendar');
 
     Route::get('/journal-history', [JournalEntryController::class, 'index'])->name('journal-history');
     Route::delete('/journal-history/{entry}', [JournalEntryController::class, 'destroy'])->name('journal.destroy');
